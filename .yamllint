@@ -1,0 +1,29 @@
+extends: default
+
+ignore-from-file: .gitignore
+
+rules:
+  braces:
+    max-spaces-inside: 1
+    level: error
+  brackets:
+    max-spaces-inside: 1
+    level: error
+  comments:
+    min-spaces-from-content: 1 # prettier compatibility
+  line-length: disable
+  document-start: disable
+  truthy:
+    allowed-values:
+      - 'True'
+      - 'true'
+      - 'Yes'
+      - 'yes'
+      - 'On'
+      - 'on'
+      - 'False'
+      - 'false'
+      - 'No'
+      - 'no'
+      - 'Off'
+      - 'off'
