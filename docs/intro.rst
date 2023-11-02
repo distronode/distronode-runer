@@ -63,7 +63,7 @@ pipe providing a bit of an extra layer of security. The formatting and expectati
 
    For an example see `the demo envvars <https://github.com/distronode/distronode-runner/blob/devel/demo/env/envvars>`_.
 
-**Distronode Runner** will inherit the environment of the launching shell. This file (which can be in json or yaml format) represents
+**Distronode Runner** will inherit the environment of the launching shell (or container, or system itself). This file (which can be in json or yaml format) represents
 the environment variables that will be added to the environment at run-time::
 
   ---
@@ -95,8 +95,8 @@ the environment variables that will be added to the environment at run-time::
    have to worry about the format of certain prompts emitted from **Distronode** itself. In particular, vault passwords need to become more flexible.
 
 **Distronode** itself is set up to emit passwords to certain prompts, these prompts can be requested (``-k`` for example to prompt for the connection password).
-Likewise, prompts can be emitted via `vars_prompt <https://docs.distronode.com/distronode/latest/user_guide/playbooks_prompts.html>`_ and also
-`Distronode Vault <https://docs.distronode.com/distronode/2.5/user_guide/vault.html#vault-ids-and-multiple-vault-passwords>`_.
+Likewise, prompts can be emitted via `vars_prompt <https://distronode.github.io/docs/latest/user_guide/playbooks_prompts.html>`_ and also
+`Distronode Vault <https://distronode.github.io/docs/2.5/user_guide/vault.html#vault-ids-and-multiple-vault-passwords>`_.
 
 In order for **Runner** to respond with the correct password, it needs to be able to match the prompt and provide the correct password. This is currently supported
 by providing a yaml or json formatted file with a regular expression and a value to emit, for example::
@@ -157,11 +157,11 @@ The process isolation settings are meant to control the process isolation featur
 * ``process_isolation_ro_paths``: ``None`` Path or list of paths on the system that should be exposed to the playbook run as read-only.
 
 These settings instruct **Runner** to execute **Distronode** tasks inside a container environment.
-For information about building execution environments, see `distronode-builder <https://distronode-builder.readthedocs.io/>`_.
+A default execution environment is provided on Quay.io at `distronode/distronode-runner <https://quay.io/repository/distronode/distronode-runner>`_.
 
 To execute **Runner** with an execution environment:
 
-``distronode-runner run --container-image my-execution-environment:latest --process-isolation -p playbook.yml .``
+``distronode-runner run --container-image quay.io/distronode/distronode-runner:devel --process-isolation -p playbook.yml .``
 
 See ``distronode-runner -h`` for other container-related options.
 
@@ -189,7 +189,7 @@ Modules
 Roles
 -----
 
-**Runner** has the ability to execute `Roles <https://docs.distronode.com/distronode/latest/user_guide/playbooks_reuse_roles.html>`_ directly without first needing
+**Runner** has the ability to execute `Roles <https://distronode.github.io/docs/latest/user_guide/playbooks_reuse_roles.html>`_ directly without first needing
 a playbook to reference them. This directory holds roles used for that. Behind the scenes, **Runner** will generate a playbook and invoke the ``Role``.
 
 .. _artifactdir:

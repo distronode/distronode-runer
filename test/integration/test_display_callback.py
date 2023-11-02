@@ -3,11 +3,11 @@ from __future__ import absolute_import
 import json
 import os
 import yaml
-
-import pytest
+import six
 
 from distronode_runner.interface import init_runner
 
+import pytest
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 
@@ -72,9 +72,9 @@ def executor(tmp_path, request):
     {'DISTRONODE_CALLBACK_PLUGINS': ''}],
     ids=['local-callback-plugin', 'no-callback-plugin']
 )
-def test_callback_plugin_receives_events(executor, event, playbook, envvars):  # pylint: disable=W0613,W0621
+def test_callback_plugin_receives_events(executor, event, playbook, envvars):
     executor.run()
-    assert list(executor.events)
+    assert len(list(executor.events))
     assert event in [task['event'] for task in executor.events]
 
 
@@ -157,9 +157,9 @@ def test_callback_plugin_receives_events(executor, event, playbook, envvars):  #
         ignore_errors: yes
 '''},  # noqa
 ])
-def test_callback_plugin_no_log_filters(executor, playbook):  # pylint: disable=W0613,W0621
+def test_callback_plugin_no_log_filters(executor, playbook):
     executor.run()
-    assert list(executor.events)
+    assert len(list(executor.events))
     assert 'SENSITIVE' not in json.dumps(list(executor.events))
 
 
@@ -176,7 +176,7 @@ def test_callback_plugin_no_log_filters(executor, playbook):  # pylint: disable=
     - uri: url=https://example.org url_username="PUBLIC" url_password="PRIVATE"
 '''},  # noqa
 ])
-def test_callback_plugin_task_args_leak(executor, playbook):  # pylint: disable=W0613,W0621
+def test_callback_plugin_task_args_leak(executor, playbook):
     executor.run()
     events = list(executor.events)
     assert events[0]['event'] == 'playbook_on_start'
@@ -213,7 +213,7 @@ def test_callback_plugin_task_args_leak(executor, playbook):  # pylint: disable=
         },  # noqa
     ],
 )
-def test_resolved_actions(executor, playbook, skipif_pre_distronode212):  # pylint: disable=W0613,W0621
+def test_resolved_actions(executor, playbook, skipif_pre_distronode212):
     executor.run()
     events = list(executor.events)
 
@@ -238,7 +238,7 @@ def test_resolved_actions(executor, playbook, skipif_pre_distronode212):  # pyli
     - debug: msg="{{ command_register.results|map(attribute='stdout')|list }}"
 '''},  # noqa
 ])
-def test_callback_plugin_censoring_does_not_overwrite(executor, playbook):  # pylint: disable=W0613,W0621
+def test_callback_plugin_censoring_does_not_overwrite(executor, playbook):
     executor.run()
     events = list(executor.events)
     assert events[0]['event'] == 'playbook_on_start'
@@ -247,7 +247,7 @@ def test_callback_plugin_censoring_does_not_overwrite(executor, playbook):  # py
     # task 1
     assert events[2]['event'] == 'playbook_on_task_start'
     # Ordering of task and item events may differ randomly
-    assert set(['runner_on_start', 'runner_item_on_ok', 'runner_on_ok']) == {data['event'] for data in events[3:6]}
+    assert set(['runner_on_start', 'runner_item_on_ok', 'runner_on_ok']) == set([data['event'] for data in events[3:6]])
 
     # task 2 no_log=True
     assert events[6]['event'] == 'playbook_on_task_start'
@@ -265,9 +265,9 @@ def test_callback_plugin_censoring_does_not_overwrite(executor, playbook):  # py
     - shell: echo "Hello, World!"
 '''},  # noqa
 ])
-def test_callback_plugin_strips_task_environ_variables(executor, playbook):  # pylint: disable=W0613,W0621
+def test_callback_plugin_strips_task_environ_variables(executor, playbook):
     executor.run()
-    assert list(executor.events)
+    assert len(list(executor.events))
     for event in list(executor.events):
         assert os.environ['PATH'] not in json.dumps(event)
 
@@ -283,7 +283,7 @@ def test_callback_plugin_strips_task_environ_variables(executor, playbook):  # p
           foo: "bar"
 '''},  # noqa
 ])
-def test_callback_plugin_saves_custom_stats(executor, playbook):  # pylint: disable=W0613,W0621
+def test_callback_plugin_saves_custom_stats(executor, playbook):
     executor.run()
     for event in executor.events:
         event_data = event.get('event_data', {})
@@ -309,9 +309,9 @@ def test_callback_plugin_saves_custom_stats(executor, playbook):  # pylint: disa
         - my_handler
 '''},  # noqa
 ])
-def test_callback_plugin_records_notify_events(executor, playbook):  # pylint: disable=W0613,W0621
+def test_callback_plugin_records_notify_events(executor, playbook):
     executor.run()
-    assert list(executor.events)
+    assert len(list(executor.events))
     notify_events = [x for x in executor.events if x['event'] == 'playbook_on_notify']
     assert len(notify_events) == 1
     assert notify_events[0]['event_data']['handler'] == 'my_handler'
@@ -333,12 +333,12 @@ def test_callback_plugin_records_notify_events(executor, playbook):  # pylint: d
         url_password: "{{ pw }}"
 '''},  # noqa
 ])
-def test_module_level_no_log(executor, playbook):  # pylint: disable=W0613,W0621
+def test_module_level_no_log(executor, playbook):
     # It's possible for `no_log=True` to be defined at the _module_ level,
     # e.g., for the URI module password parameter
     # This test ensures that we properly redact those
     executor.run()
-    assert list(executor.events)
+    assert len(list(executor.events))
     assert 'john-jacob-jingleheimer-schmidt' in json.dumps(list(executor.events))
     assert 'SENSITIVE' not in json.dumps(list(executor.events))
 
@@ -355,16 +355,15 @@ def test_output_when_given_invalid_playbook(tmp_path):
     #
     # But no test validated it.  This does that.
     private_data_dir = str(tmp_path)
-    ex = init_runner(
+    executor = init_runner(
         private_data_dir=private_data_dir,
         inventory='localhost distronode_connection=local distronode_python_interpreter="{{ distronode_playbook_python }}"',
         envvars={"DISTRONODE_DEPRECATION_WARNINGS": "False"},
         playbook=os.path.join(private_data_dir, 'fake_playbook.yml')
     )
 
-    ex.run()
-    with ex.stdout as f:
-        stdout = f.read()
+    executor.run()
+    stdout = executor.stdout.read()
     assert "ERROR! the playbook:" in stdout
     assert "could not be found" in stdout
 
@@ -392,20 +391,18 @@ def test_output_when_given_non_playbook_script(tmp_path):
     with open(os.path.join(private_data_dir, "env", "settings"), 'w') as settings_file:
         settings_file.write("pexpect_timeout: 0.2")
 
-    ex = init_runner(
+    executor = init_runner(
         private_data_dir=private_data_dir,
         inventory='localhost distronode_connection=local distronode_python_interpreter="{{ distronode_playbook_python }}"',
         envvars={"DISTRONODE_DEPRECATION_WARNINGS": "False"}
     )
 
-    ex.run()
-
-    with ex.stdout as f:
-        stdout = f.readlines()
+    executor.run()
+    stdout = executor.stdout.readlines()
     assert stdout[0].strip() == "hi world"
     assert stdout[1].strip() == "goodbye world"
 
-    events = list(ex.events)
+    events = list(executor.events)
 
     assert len(events) == 2
     assert events[0]['event'] == 'verbose'
@@ -426,7 +423,7 @@ def test_output_when_given_non_playbook_script(tmp_path):
         msg: "{{ ('F' * 150) | list }}"
 '''},  # noqa
 ])
-def test_large_stdout_parsing_when_using_json_output(executor, playbook):  # pylint: disable=W0613,W0621
+def test_large_stdout_parsing_when_using_json_output(executor, playbook):
     # When the json flag is used, it is possible to output more data than
     # pexpect's maxread default of 2000 characters.  As a result, if not
     # handled properly, the stdout can end up being corrupted with partial
@@ -435,8 +432,9 @@ def test_large_stdout_parsing_when_using_json_output(executor, playbook):  # pyl
     #
     # This tests to confirm we don't pollute the stdout output with non-json
     # lines when a single event has a lot of output.
+    if six.PY2:
+        pytest.skip('Distronode in python2 uses different syntax.')
     executor.config.env['DISTRONODE_NOCOLOR'] = str(True)
     executor.run()
-    with executor.stdout as f:
-        text = f.read()
+    text = executor.stdout.read()
     assert text.count('"F"') == 150

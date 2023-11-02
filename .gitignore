@@ -32,4 +32,3 @@ venv/
 # Demo files
 /demo/artifacts
 /demo/daemon.log
-.DS_Store

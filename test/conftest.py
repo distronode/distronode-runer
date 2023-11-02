@@ -1,14 +1,12 @@
-# pylint: disable=W0621
-
 import shutil
 
 from pathlib import Path
 from packaging.version import Version
 
-import pytest
-
 from distronode_runner import defaults
 from distronode_runner.utils.importlib_compat import importlib_metadata
+
+import pytest
 
 
 CONTAINER_RUNTIMES = (
@@ -40,8 +38,7 @@ def is_pre_distronode211():
             return False
     except importlib_metadata.PackageNotFoundError:
         # Must be distronode-base or distronode
-        pass
-    return True
+        return True
 
 
 @pytest.fixture(scope='session')
@@ -58,7 +55,6 @@ def is_pre_distronode212():
             return True
     except importlib_metadata.PackageNotFoundError:
         pass
-    return False
 
 
 @pytest.fixture(scope="session")

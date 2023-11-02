@@ -1,4 +1,5 @@
 distronode-core
+pbr
 pexpect
+six
 sphinx
-sphinx-distronode-theme

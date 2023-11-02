@@ -1,12 +1,12 @@
 import json
 import pytest
 
-from distronode_runner import run, run_async
+from distronode_runner import defaults, run, run_async
 
 
 @pytest.mark.test_all_runtimes
 @pytest.mark.parametrize('containerized', [True, False])
-def test_basic_events(containerized, runtime, tmp_path, container_image, is_run_async=False, g_facts=False):
+def test_basic_events(containerized, runtime, tmp_path, is_run_async=False, g_facts=False):
 
     inventory = 'localhost distronode_connection=local distronode_python_interpreter="{{ distronode_playbook_python }}"'
 
@@ -18,7 +18,7 @@ def test_basic_events(containerized, runtime, tmp_path, container_image, is_run_
     if containerized:
         run_args.update({'process_isolation': True,
                          'process_isolation_executable': runtime,
-                         'container_image': container_image,
+                         'container_image': defaults.default_container_image,
                          'container_volume_mounts': [f'{tmp_path}:{tmp_path}']})
 
     if not is_run_async:
@@ -28,7 +28,8 @@ def test_basic_events(containerized, runtime, tmp_path, container_image, is_run_
         thread.join()  # ensure async run finishes
 
     event_types = [x['event'] for x in r.events if x['event'] != 'verbose']
-    okay_events = list(filter(lambda x: 'event' in x and x['event'] == 'runner_on_ok', r.events))
+    okay_events = [x for x in filter(lambda x: 'event' in x and x['event'] == 'runner_on_ok',
+                                     r.events)]
 
     assert event_types[0] == 'playbook_on_start'
     assert "playbook_on_play_start" in event_types
@@ -51,8 +52,8 @@ def test_basic_events(containerized, runtime, tmp_path, container_image, is_run_
 
 @pytest.mark.test_all_runtimes
 @pytest.mark.parametrize('containerized', [True, False])
-def test_async_events(containerized, runtime, tmp_path, container_image):
-    test_basic_events(containerized, runtime, tmp_path, container_image, is_run_async=True, g_facts=True)
+def test_async_events(containerized, runtime, tmp_path):
+    test_basic_events(containerized, runtime, tmp_path, is_run_async=True, g_facts=True)
 
 
 def test_basic_serializeable(tmp_path):
@@ -60,7 +61,7 @@ def test_basic_serializeable(tmp_path):
     r = run(private_data_dir=str(tmp_path),
             inventory=inv,
             playbook=[{'hosts': 'all', 'gather_facts': False, 'tasks': [{'debug': {'msg': "test"}}]}])
-    events = list(r.events)
+    events = [x for x in r.events]
     json.dumps(events)
 
 
@@ -78,7 +79,7 @@ def test_event_omission(tmp_path):
             continue
         events.append(x)
 
-    assert not any(x['event_data'] for x in events)
+    assert not any([x['event_data'] for x in events])
 
 
 def test_event_omission_except_failed(tmp_path):
@@ -100,11 +101,12 @@ def test_event_omission_except_failed(tmp_path):
     assert len(all_event_datas) == 1
 
 
-def test_runner_on_start(tmp_path):
+def test_runner_on_start(rc, tmp_path):
     r = run(private_data_dir=str(tmp_path),
             inventory='localhost distronode_connection=local distronode_python_interpreter="{{ distronode_playbook_python }}"',
             playbook=[{'hosts': 'all', 'gather_facts': False, 'tasks': [{'debug': {'msg': "test"}}]}])
-    start_events = list(filter(lambda x: 'event' in x and x['event'] == 'runner_on_start', r.events))
+    start_events = [x for x in filter(lambda x: 'event' in x and x['event'] == 'runner_on_start',
+                                      r.events)]
     assert len(start_events) == 1
 
 

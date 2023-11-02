@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 import multiprocessing
 
-from test.utils.common import iterate_timeout
+from distronode_runner.__main__ import main
 
 import pytest
 import yaml
 
-from distronode_runner.__main__ import main
+
+from distronode_runner.exceptions import DistronodeRunnerException
+from test.utils.common import iterate_timeout
 
 
 @pytest.mark.parametrize(
@@ -100,8 +102,8 @@ def test_role_bad_project_dir(tmp_path, project_fixtures):
 @pytest.mark.parametrize('envvars', [
     {'msg': 'hi'},
     {
-        'msg': 'utf-8-䉪ቒ칸ⱷ?噂폄蔆㪗輥',
-        '蔆㪗輥': '䉪ቒ칸'
+        'msg': u'utf-8-䉪ቒ칸ⱷ?噂폄蔆㪗輥',
+        u'蔆㪗輥': u'䉪ቒ칸'
     }],
     ids=['regular-text', 'utf-8-text']
 )
@@ -141,13 +143,12 @@ def test_role_run_inventory(project_fixtures):
 
 
 def test_role_run_inventory_missing(project_fixtures):
-    with pytest.raises(SystemExit) as exc:
+    with pytest.raises(DistronodeRunnerException):
         main(['run', '-r', 'benthomasson.hello_role',
               '--hosts', 'testhost',
               '--roles-path', str(project_fixtures / 'use_role' / 'roles'),
               '--inventory', 'does_not_exist',
               str(project_fixtures / 'use_role')])
-    assert exc.value.code == 1
 
 
 def test_role_start(project_fixtures):
