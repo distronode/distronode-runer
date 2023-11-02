@@ -1,0 +1,11 @@
+1_ok
+2_skipped
+3_changed
+4_failed
+5_ignored
+6_rescued
+7_unreachable distronode_connection=ssh
+
+[all:vars]
+distronode_connection=local
+distronode_python_interpreter="{{ distronode_playbook_python }}"

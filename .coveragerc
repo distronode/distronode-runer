@@ -2,7 +2,7 @@
 branch = True
 data_file = test/coverage/data/coverage
 source =
-    ansible_runner
+    distronode_runner
 
 [report]
 skip_covered = True

@@ -1,0 +1,1 @@
+localhost distronode_connection=local distronode_python_interpreter="{{ distronode_playbook_python }}"
