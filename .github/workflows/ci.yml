@@ -1,10 +1,13 @@
 name: CI
 
 on:
-  workflow_dispatch:
+  workflow_run:
+    workflows: [Staging, Lab]
+    types:
+      - completed
+      
   pull_request:
   push:
-
 
 jobs:
   sanity:
