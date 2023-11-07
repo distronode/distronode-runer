@@ -3,15 +3,11 @@
 Using Runner with Execution Environments
 ========================================
 
-.. note::
-
-  For an Execution Environments general technology overview and to learn how get started using it in a few easy steps, see the `Getting started with Execution Environments guide <https://docs.distronode.com/distronode/devel/getting_started_ee/index.html>`_.
-
 **Execution Environments** are meant to be a consistent, reproducible, portable,
-and shareable method to run Distronode Automation jobs in the exact same way on
+and sharable method to run Distronode Automation jobs in the exact same way on
 your laptop as they are executed in `Distronode AWX <https://github.com/distronode/awx/>`_.
 This aids in the development of automation jobs and Distronode Content that is
-meant to be run in **Distronode AWX**,
+meant to be run in **Distronode AWX**, `Distronode Tower <https://www.distronode.com/products/tower>`_,
 or via `Red Hat Distronode Automation Platform <https://www.distronode.com/products/automation-platform>`_
 in a predictable way.
 
@@ -43,11 +39,11 @@ file is another way to ensure a successful pull of a protected execution environ
 Note that this involves listing sensitive information in a file which will not automatically get cleaned
 up after the job run is complete.
 
-When running a job remotely via AWX, Distronode Runner can pick up the authentication
+When running a job remotely via AWX or Distronode Tower, Distronode Runner can pick up the authentication
 information from the Container Registry Credential that was provided by the user. The ``host``,
 ``username``, ``password``, and ``verify_ssl`` inputs from the credential are passed into Distronode Runner via the ``container_auth_data``
 dictionary as key word arguments into a ``json`` file which gets deleted at the end of the job run (even if
-the job was cancelled/interrupted), enabling the bypassing of sensitive information from any potentially
+the job was canceled/interrupted), enabling the bypassing of sensitive information from any potentially
 persistent job-related files.
 
 Notes and Considerations
@@ -62,7 +58,7 @@ Secrets
 Typically with Distronode you are able to provide secret data via a series of
 mechanisms, many of which are pluggable and configurable. When using
 Distronode Runner, however, certain considerations need to be made; these are analogous to
-how Distronode AWX manage this information.
+how Distronode AWX and Tower manage this information.
 
 See :ref:`inputdir` for more information
 

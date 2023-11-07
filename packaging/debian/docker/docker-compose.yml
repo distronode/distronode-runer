@@ -1,0 +1,14 @@
+---
+version: '3'
+services:
+  deb-builder:
+    build: .
+    environment:
+      RELEASE:
+      OFFICIAL:
+    volumes:
+      - ../../../:/distronode-runner
+      - ${GPG_SIGNING_KEY}:/signing_key.asc
+    entrypoint: ["/bin/bash", "-c"]
+    working_dir: /distronode-runner
+    privileged: true

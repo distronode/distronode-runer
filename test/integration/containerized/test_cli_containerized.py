@@ -3,18 +3,18 @@ import os
 import signal
 import sys
 
-from test.utils.common import iterate_timeout
 from uuid import uuid4
 
 import pytest
 
+from test.utils.common import iterate_timeout
+
 
 @pytest.mark.test_all_runtimes
-def test_module_run(cli, project_fixtures, runtime, container_image):
+def test_module_run(cli, project_fixtures, runtime):
     r = cli([
         'run',
         '--process-isolation-executable', runtime,
-        '--container-image', container_image,
         '-m', 'ping',
         '--hosts', 'testhost',
         project_fixtures.joinpath('containerized').as_posix(),
@@ -24,7 +24,7 @@ def test_module_run(cli, project_fixtures, runtime, container_image):
 
 
 @pytest.mark.test_all_runtimes
-def test_playbook_run(cli, project_fixtures, runtime, container_image):
+def test_playbook_run(cli, project_fixtures, runtime):
     # Ensure the container environment variable is set so that Distronode fact gathering
     # is able to detect it is running inside a container.
     envvars_path = project_fixtures / 'containerized' / 'env' / 'envvars'
@@ -34,7 +34,6 @@ def test_playbook_run(cli, project_fixtures, runtime, container_image):
     r = cli([
         'run',
         '--process-isolation-executable', runtime,
-        '--container-image', container_image,
         '-p', 'test-container.yml',
         project_fixtures.joinpath('containerized').as_posix(),
     ])
@@ -43,11 +42,10 @@ def test_playbook_run(cli, project_fixtures, runtime, container_image):
 
 
 @pytest.mark.test_all_runtimes
-def test_provide_env_var(cli, project_fixtures, runtime, container_image):
+def test_provide_env_var(cli, project_fixtures, runtime):
     r = cli([
         'run',
         '--process-isolation-executable', runtime,
-        '--container-image', container_image,
         '-p', 'printenv.yml',
         project_fixtures.joinpath('job_env').as_posix(),
     ])
@@ -56,7 +54,7 @@ def test_provide_env_var(cli, project_fixtures, runtime, container_image):
 
 @pytest.mark.test_all_runtimes
 @pytest.mark.skipif(sys.platform == 'darwin', reason='distronode-runner start does not work reliably on macOS')
-def test_cli_kill_cleanup(cli, runtime, project_fixtures, container_image):
+def test_cli_kill_cleanup(cli, runtime, project_fixtures):
     unique_string = str(uuid4()).replace('-', '')
     ident = f'kill_test_{unique_string}'
     pdd = os.path.join(project_fixtures, 'sleep')
@@ -66,7 +64,6 @@ def test_cli_kill_cleanup(cli, runtime, project_fixtures, container_image):
         '--ident', ident,
         '--process-isolation',
         '--process-isolation-executable', runtime,
-        '--container-image', container_image,
     ]
     cli(cli_args)
 

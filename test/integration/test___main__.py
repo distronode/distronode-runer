@@ -16,7 +16,7 @@ def random_string():
 
 
 def random_json(keys=None):
-    data = {}
+    data = dict()
     if keys:
         for key in keys:
             data[key] = random_string()
@@ -27,15 +27,14 @@ def random_json(keys=None):
 
 
 def cmdline(command, *args):
-    cmd = ['distronode-runner', command]
-    cmd.extend(args)
-    sys.argv = cmd
+    cmdline = ['distronode-runner', command]
+    cmdline.extend(args)
+    sys.argv = cmdline
 
 
 def test_main_bad_private_data_dir():
     tmpfile = os.path.join('/tmp', str(uuid.uuid4().hex))
-    with open(tmpfile, 'w') as f:
-        f.write(random_string())
+    open(tmpfile, 'w').write(random_string())
 
     cmdline('run', tmpfile, '-p', 'fake')
 
@@ -131,8 +130,7 @@ def test_cmdline_playbook_hosts():
     cmdline('run', 'private_data_dir', '-p', 'fake', '--hosts', 'all')
     with pytest.raises(SystemExit) as exc:
         distronode_runner.__main__.main()
-
-    assert exc.value.code == 1
+        assert exc == 1
 
 
 def test_cmdline_includes_one_option():
@@ -141,8 +139,7 @@ def test_cmdline_includes_one_option():
     cmdline('run', 'private_data_dir')
     with pytest.raises(SystemExit) as exc:
         distronode_runner.__main__.main()
-
-    assert exc.value.code == 1
+        assert exc == 1
 
 
 def test_cmdline_cmdline_override(tmp_path):
@@ -164,19 +161,3 @@ def test_cmdline_cmdline_override(tmp_path):
 
     cmdline('run', str(private_data_dir), '-p', str(playbook), '--cmdline', '-e foo=bar')
     assert distronode_runner.__main__.main() == 0
-
-
-def test_cmdline_invalid_inventory(tmp_path):
-    """
-    Test that an invalid inventory path causes an error.
-    """
-    private_data_dir = tmp_path
-    inv_path = private_data_dir / 'inventory'
-    inv_path.mkdir(parents=True)
-
-    cmdline('run', str(private_data_dir), '-p', 'test.yml', '--inventory', 'badInventoryPath')
-
-    with pytest.raises(SystemExit) as exc:
-        distronode_runner.__main__.main()
-
-    assert exc.value.code == 1

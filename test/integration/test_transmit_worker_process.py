@@ -1,6 +1,5 @@
 import base64
 import io
-import json
 import os
 import socket
 import concurrent.futures
@@ -8,6 +7,7 @@ import time
 import threading
 
 import pytest
+import json
 
 from distronode_runner import run
 from distronode_runner.streaming import Transmitter, Worker, Processor
@@ -16,23 +16,22 @@ import distronode_runner.interface  # AWX import pattern
 
 
 class TestStreamingUsage:
-    # pylint: disable=W0201
 
     @pytest.fixture(autouse=True)
     def reset_self_props(self):
         self.status_data = None
 
-    def status_handler(self, status_data, runner_config=None):  # pylint: disable=W0613
+    def status_handler(self, status_data, runner_config=None):
         self.status_data = status_data
 
     def get_job_kwargs(self, job_type):
         """For this test scenaro, the distronode-runner interface kwargs"""
         if job_type == 'run':
-            job_kwargs = {'playbook': 'debug.yml'}
+            job_kwargs = dict(playbook='debug.yml')
         else:
-            job_kwargs = {'module': 'setup', 'host_pattern': 'localhost'}
+            job_kwargs = dict(module='setup', host_pattern='localhost')
         # also test use of user env vars
-        job_kwargs['envvars'] = {'MY_ENV_VAR': 'bogus'}
+        job_kwargs['envvars'] = dict(MY_ENV_VAR='bogus')
         return job_kwargs
 
     @staticmethod
@@ -105,8 +104,6 @@ class TestStreamingUsage:
         processor = Processor(_input=incoming_buffer, private_data_dir=process_dir)
         processor.run()
 
-        outgoing_buffer.close()
-        incoming_buffer.close()
         self.check_artifacts(str(process_dir), job_type)
 
     @pytest.mark.parametrize("keepalive_setting", [
@@ -116,7 +113,6 @@ class TestStreamingUsage:
         None,  # default disable, test sets envvar for keepalives
     ])
     def test_keepalive_setting(self, tmp_path, project_fixtures, keepalive_setting):
-        # pylint: disable=W0212
         verbosity = None
         output_corruption_test_mode = 0 < (keepalive_setting or 0) < 1
 
@@ -133,8 +129,8 @@ class TestStreamingUsage:
 
         worker_dir = tmp_path / 'for_worker'
         process_dir = tmp_path / 'for_process'
-        for directory in (worker_dir, process_dir):
-            directory.mkdir()
+        for dir in (worker_dir, process_dir):
+            dir.mkdir()
 
         outgoing_buffer = io.BytesIO()
         incoming_buffer = io.BytesIO()
@@ -143,7 +139,7 @@ class TestStreamingUsage:
 
         status, rc = Transmitter(
             _output=outgoing_buffer, private_data_dir=project_fixtures / 'sleep',
-            playbook='sleep.yml', extravars={'sleep_interval': 2}, verbosity=verbosity
+            playbook='sleep.yml', extravars=dict(sleep_interval=2), verbosity=verbosity
         ).run()
         assert rc in (None, 0)
         assert status == 'unstarted'
@@ -230,15 +226,11 @@ class TestStreamingUsage:
 
         transmit_socket_write, transmit_socket_read = socket.socketpair()
         results_socket_write, results_socket_read = socket.socketpair()
-        transmit_socket_read_file = transmit_socket_read.makefile('rb')
-        transmit_socket_write_file = transmit_socket_write.makefile('wb')
-        results_socket_read_file = results_socket_read.makefile('rb')
-        results_socket_write_file = results_socket_write.makefile('wb')
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            transmit_future = executor.submit(transmit_method, transmit_socket_write_file)
+            transmit_future = executor.submit(transmit_method, transmit_socket_write.makefile('wb'))
             # In real AWX implementation, worker is done via receptorctl
-            executor.submit(worker_method, transmit_socket_read_file, results_socket_write_file)
+            executor.submit(worker_method, transmit_socket_read.makefile('rb'), results_socket_write.makefile('wb'))
 
             while True:
                 if transmit_future.done():
@@ -249,17 +241,14 @@ class TestStreamingUsage:
             assert res.rc in (None, 0)
             assert res.status == 'unstarted'
 
-            process_future = executor.submit(process_method, results_socket_read_file)
+            process_future = executor.submit(process_method, results_socket_read.makefile('rb'))
 
             while True:
                 if process_future.done():
                     break
                 time.sleep(0.05)  # additionally, AWX calls cancel_callback()
 
-        for s in (
-            transmit_socket_write, transmit_socket_read, results_socket_write, results_socket_read,
-            transmit_socket_write_file, transmit_socket_read_file, results_socket_write_file, results_socket_read_file,
-        ):
+        for s in (transmit_socket_write, transmit_socket_read, results_socket_write, results_socket_read):
             s.close()
 
         assert self.status_data is not None
@@ -330,8 +319,6 @@ class TestStreamingUsage:
                 private_data_dir=worker_dir,
             )
             assert exc.value.code == 1
-        outgoing_buffer.close()
-        incoming_buffer.close()
 
 
 @pytest.fixture
@@ -344,13 +331,13 @@ def transmit_stream(project_fixtures, tmp_path):
         transmitter = Transmitter(_output=f, private_data_dir=transmit_dir, playbook='debug.yml')
         status, rc = transmitter.run()
 
-        assert rc in (None, 0)
-        assert status == 'unstarted'
-        return outgoing_buffer
+    assert rc in (None, 0)
+    assert status == 'unstarted'
+    return outgoing_buffer
 
 
 @pytest.fixture
-def worker_stream(transmit_stream, tmp_path):  # pylint: disable=W0621
+def worker_stream(transmit_stream, tmp_path):
     ingoing_buffer = tmp_path / 'buffer2'  # basically how some demos work
     ingoing_buffer.touch()
 
@@ -366,7 +353,7 @@ def worker_stream(transmit_stream, tmp_path):  # pylint: disable=W0621
             return ingoing_buffer
 
 
-def test_worker_without_delete_no_dir(tmp_path, cli, transmit_stream):  # pylint: disable=W0621
+def test_worker_without_delete_no_dir(tmp_path, cli, transmit_stream):
     worker_dir = tmp_path / 'for_worker'
 
     with open(transmit_stream, 'rb') as stream:
@@ -377,7 +364,7 @@ def test_worker_without_delete_no_dir(tmp_path, cli, transmit_stream):  # pylint
     assert worker_dir.joinpath('project', 'debug.yml').exists()
 
 
-def test_worker_without_delete_dir_exists(tmp_path, cli, transmit_stream):  # pylint: disable=W0621
+def test_worker_without_delete_dir_exists(tmp_path, cli, transmit_stream):
     worker_dir = tmp_path / 'for_worker'
     worker_dir.mkdir()
 
@@ -393,7 +380,7 @@ def test_worker_without_delete_dir_exists(tmp_path, cli, transmit_stream):  # py
     assert test_file_path.exists()
 
 
-def test_worker_delete_no_dir(tmp_path, cli, transmit_stream):  # pylint: disable=W0621
+def test_worker_delete_no_dir(tmp_path, cli, transmit_stream):
     """
     Case where non-existing --delete is provided to worker command
     it should always delete everything both before and after the run
@@ -409,7 +396,7 @@ def test_worker_delete_no_dir(tmp_path, cli, transmit_stream):  # pylint: disabl
     assert not worker_dir.joinpath('project', 'debug.yml').exists()
 
 
-def test_worker_delete_dir_exists(tmp_path, cli, transmit_stream):  # pylint: disable=W0621
+def test_worker_delete_dir_exists(tmp_path, cli, transmit_stream):
     """
     Case where non-existing --delete is provided to worker command
     it should always delete everything both before and after the run
@@ -429,7 +416,7 @@ def test_worker_delete_dir_exists(tmp_path, cli, transmit_stream):  # pylint: di
     assert not worker_dir.joinpath('project', 'debug.yml').exists()
 
 
-def test_process_with_custom_ident(tmp_path, cli, worker_stream):  # pylint: disable=W0621
+def test_process_with_custom_ident(tmp_path, cli, worker_stream):
     process_dir = tmp_path / 'for_process'
     process_dir.mkdir()
 
@@ -443,7 +430,7 @@ def test_process_with_custom_ident(tmp_path, cli, worker_stream):  # pylint: dis
     assert (process_dir / 'artifacts' / 'custom_ident' / 'job_events').exists()
 
 
-def test_missing_private_dir_transmit():
+def test_missing_private_dir_transmit(tmpdir):
     outgoing_buffer = io.BytesIO()
 
     # Transmit
@@ -505,7 +492,7 @@ def test_unparsable_really_big_line_processor(tmp_path):
     process_dir.mkdir()
     incoming_buffer = io.BytesIO(bytes(f'not-json-data with extra garbage:{"f"*10000}', encoding='utf-8'))
 
-    def status_receiver(status_data, runner_config):  # pylint: disable=W0613
+    def status_receiver(status_data, runner_config):
         assert status_data['status'] == 'error'
         assert 'Failed to JSON parse a line from worker stream.' in status_data['job_explanation']
         assert 'not-json-data with extra garbage:ffffffffff' in status_data['job_explanation']

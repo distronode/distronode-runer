@@ -11,7 +11,7 @@ whether that be through a container image interface, as a standalone tool, or as
 is to provide a stable and consistent interface abstraction to Distronode. This allows **Distronode** to be embedded into other systems that don't
 want to manage the complexities of the interface on their own (such as CI/CD platforms, Jenkins, or other automated tooling).
 
-**Distronode Runner** represents the modularization of the part of `Distronode AWX <https://github.com/distronode/awx>`_ that is responsible
+**Distronode Runner** represents the modularization of the part of `Distronode Tower/AWX <https://github.com/distronode/awx>`_ that is responsible
 for running ``distronode`` and ``distronode-playbook`` tasks and gathers the output from it. It does this by presenting a common interface that doesn't
 change, even as **Distronode** itself grows and evolves.
 
@@ -21,13 +21,15 @@ output (stdout) and artifacts (host-level event data, fact data, etc) of the pla
 There are 3 primary ways of interacting with **Runner**
 
 * A standalone command line tool (``distronode-runner``) that can be started in the foreground or run in the background asynchronously
+* A reference container image that can be used as a base for your own images and will work as a standalone container or running in
+  Openshift or Kubernetes
 * A python module - library interface
 
 **Distronode Runner** can also be configured to send status and event data to other systems using a plugin interface, see :ref:`externalintf`.
 
 Examples of this could include:
 
-* Sending status to Distronode AWX
+* Sending status to Distronode Tower/AWX
 * Sending events to an external logging service
 
 
@@ -41,6 +43,7 @@ Examples of this could include:
    standalone
    python_interface
    execution_environments
+   container
    remote_jobs
    modules
 
