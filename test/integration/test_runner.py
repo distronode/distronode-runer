@@ -3,19 +3,20 @@
 import json
 import os
 import re
+import pytest
+import six
 import sys
 
-from test.utils.common import iterate_timeout
-
-import pytest
-
 from distronode_runner import Runner
+
 from distronode_runner.exceptions import DistronodeRunnerException
+
+from test.utils.common import iterate_timeout
 
 
 @pytest.mark.xfail(reason='Test is unstable')
 def test_password_prompt(rc):
-    rc.command = [sys.executable, '-c', 'import time; print(input("Password: "))']
+    rc.command = [sys.executable, '-c' 'import time; print(input("Password: "))']
     rc.expect_passwords[re.compile(r'Password:\s*?$', re.M)] = '1234'
     status, exitcode = Runner(config=rc).run()
     assert status == 'successful'
@@ -41,6 +42,8 @@ def test_run_command(rc):
 
 def test_run_command_with_unicode(rc):
     expected = '"utf-8-䉪ቒ칸ⱷ?噂폄蔆㪗輥"'
+    if six.PY2:
+        expected = expected.decode('utf-8')
     rc.command = ['echo', '"utf-8-䉪ቒ칸ⱷ?噂폄蔆㪗輥"']
     rc.envvars = {"䉪ቒ칸": "蔆㪗輥"}
     rc.prepare_env()
@@ -52,7 +55,7 @@ def test_run_command_with_unicode(rc):
         assert data.get('command') == ['echo', expected]
         assert 'cwd' in data
         assert isinstance(data.get('env'), dict)
-        assert "䉪ቒ칸" in data.get('env')
+        assert u"䉪ቒ칸" in data.get('env')
 
 
 def test_run_command_finished_callback(rc, mocker):
@@ -84,7 +87,7 @@ def test_run_command_explosive_cancel_callback(rc):
 
 
 def test_run_command_cancel_callback(rc):
-    def cancel(*args):  # pylint: disable=W0613
+    def cancel(*args):
         return True
     rc.command = ['sleep', '1']
     runner = Runner(config=rc, cancel_callback=cancel)
@@ -152,7 +155,7 @@ def test_run_command_events_missing(rc):
     status, exitcode = runner.run()
     assert status == 'successful'
     assert exitcode == 0
-    assert not list(runner.events)
+    assert list(runner.events) == []
 
 
 def test_run_command_stdout_missing(rc):
@@ -183,12 +186,11 @@ def test_run_command_distronode(rc):
     status, exitcode = runner.run()
     assert status == 'successful'
     assert exitcode == 0
-    assert list(runner.events)
+    assert list(runner.events) != []
     assert runner.stats != {}
-    assert list(runner.host_events('localhost')), repr(list(runner.events))
-    with runner.stdout as f:
-        stdout = f.read()
-    assert stdout != ""
+    assert list(runner.host_events('localhost')) != [], repr(list(runner.events))
+    stdout = runner.stdout
+    assert stdout.read() != ""
 
 
 def test_run_command_distronode_event_handler(rc, mocker):
@@ -255,7 +257,7 @@ def test_set_fact_cache(rc):
     rc.host_pattern = "localhost"
     rc.prepare()
     runner = Runner(config=rc)
-    runner.set_fact_cache('localhost', {'message': 'hello there'})
+    runner.set_fact_cache('localhost', dict(message='hello there'))
     status, exitcode = runner.run()
     assert status == 'successful'
     assert exitcode == 0
@@ -270,10 +272,10 @@ def test_set_extra_vars(rc):
     rc.module = "debug"
     rc.module_args = "var=test_extra_vars"
     rc.host_pattern = "localhost"
-    rc.extra_vars = {'test_extra_vars': 'hello there'}
+    rc.extra_vars = dict(test_extra_vars='hello there')
     rc.prepare()
     runner = Runner(config=rc)
-    runner.run()
+    status, exitcode = runner.run()
     # stdout file can be subject to a race condition
     for _ in iterate_timeout(30.0, 'stdout file to be written with "hello there" in it', interval=0.2):
         with open(os.path.join(rc.artifact_dir, 'stdout')) as f:

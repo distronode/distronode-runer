@@ -3,6 +3,7 @@ import shutil
 
 import pytest
 
+from distronode_runner import defaults
 from distronode_runner.interface import (
     get_distronode_config,
     get_inventory,
@@ -51,8 +52,7 @@ def test_repeat_run_with_new_inventory(project_fixtures):
         playbook='debug.yml',
         inventory='localhost',
     )
-    with res.stdout as f:
-        stdout = f.read()
+    stdout = res.stdout.read()
     assert res.rc == 0, stdout
     assert hosts_file.read_text() == 'localhost', 'hosts file content is incorrect'
 
@@ -62,8 +62,7 @@ def test_repeat_run_with_new_inventory(project_fixtures):
         playbook='debug.yml',
         inventory='127.0.0.1',
     )
-    with res.stdout as f:
-        stdout = f.read()
+    stdout = res.stdout.read()
     assert res.rc == 0, stdout
     assert hosts_file.read_text() == '127.0.0.1', 'hosts file content is incorrect'
 
@@ -77,11 +76,10 @@ def get_env_data(res):
         )
         if found and 'res' in event['event_data']:
             return event['event_data']['res']
-
-    print('output:')
-    with res.stdout as f:
-        print(f.read())
-    raise RuntimeError('Count not find look_at_environment task from playbook')
+    else:
+        print('output:')
+        print(res.stdout.read())
+        raise RuntimeError('Count not find look_at_environment task from playbook')
 
 
 def test_env_accuracy(request, project_fixtures):
@@ -106,8 +104,7 @@ def test_env_accuracy(request, project_fixtures):
         inventory=None,
         envvars={'FROM_TEST': 'FOOBAR'},
     )
-    with res.stdout as f:
-        assert res.rc == 0, f.read()
+    assert res.rc == 0, res.stdout.read()
 
     actual_env = get_env_data(res)['environment']
 
@@ -117,7 +114,7 @@ def test_env_accuracy(request, project_fixtures):
     assert os.path.exists(printenv_example / "env/envvars") == 1
 
 
-def test_no_env_files(project_fixtures):
+def test_no_env_files(request, project_fixtures):
     printenv_example = project_fixtures / 'printenv'
     os.environ['SET_BEFORE_TEST'] = 'MADE_UP_VALUE'
 
@@ -134,14 +131,13 @@ def test_no_env_files(project_fixtures):
         envvars={'FROM_TEST': 'FOOBAR'},
         suppress_env_files=True,
     )
-    with res.stdout as f:
-        assert res.rc == 0, f.read()
+    assert res.rc == 0, res.stdout.read()
     # Assert that the env file was not created
     assert os.path.exists(printenv_example / "env/envvars") == 0
 
 
 @pytest.mark.test_all_runtimes
-def test_env_accuracy_inside_container(request, project_fixtures, runtime, container_image):
+def test_env_accuracy_inside_container(request, project_fixtures, runtime):
     printenv_example = project_fixtures / 'printenv'
     os.environ['SET_BEFORE_TEST'] = 'MADE_UP_VALUE'
 
@@ -159,8 +155,7 @@ def test_env_accuracy_inside_container(request, project_fixtures, runtime, conta
         envvars={'FROM_TEST': 'FOOBAR'},
         settings={
             'process_isolation_executable': runtime,
-            'process_isolation': True,
-            'container_image': container_image,
+            'process_isolation': True
         }
     )
     assert res.rc == 0, res.stdout.read()
@@ -174,7 +169,7 @@ def test_env_accuracy_inside_container(request, project_fixtures, runtime, conta
     # all environment variables, particularly those set by the entrypoint script
     for key, value in expected_env.items():
         assert key in actual_env
-        assert actual_env[key] == value, f'Reported value wrong for {key} env var'
+        assert actual_env[key] == value, 'Reported value wrong for {0} env var'.format(key)
 
     assert env_data['cwd'] == res.config.cwd
 
@@ -186,8 +181,7 @@ def test_multiple_inventories(project_fixtures):
         private_data_dir=private_data_dir,
         playbook='debug.yml',
     )
-    with res.stdout as f:
-        stdout = f.read()
+    stdout = res.stdout.read()
     assert res.rc == 0, stdout
 
     # providing no inventory should cause <private_data_dir>/inventory
@@ -206,8 +200,7 @@ def test_inventory_absolute_path(project_fixtures):
             str(private_data_dir / 'inventory' / 'inv_1'),
         ],
     )
-    with res.stdout as f:
-        stdout = f.read()
+    stdout = res.stdout.read()
     assert res.rc == 0, stdout
 
     # hosts can be down-selected to one inventory out of those available
@@ -230,7 +223,7 @@ def test_run_command(project_fixtures):
 
 
 def test_run_command_injection_error():
-    _, err, rc = run_command(
+    out, err, rc = run_command(
         executable_cmd='whoami',
         cmdline_args=[';hostname'],
         runner_mode='subprocess',
@@ -240,28 +233,28 @@ def test_run_command_injection_error():
 
 
 @pytest.mark.test_all_runtimes
-def test_run_command_injection_error_within_container(runtime, container_image):
-    _, err, rc = run_command(
+def test_run_command_injection_error_within_container(runtime):
+    out, err, rc = run_command(
         executable_cmd='whoami',
         cmdline_args=[';hostname'],
         runner_mode='subprocess',
         process_isolation_executable=runtime,
         process_isolation=True,
-        container_image=container_image,
+        container_image=defaults.default_container_image,
     )
     assert rc == 1
     assert "whoami: extra operand ';hostname'" in err
 
 
 @pytest.mark.test_all_runtimes
-def test_run_distronode_command_within_container(project_fixtures, runtime, container_image):
+def test_run_distronode_command_within_container(project_fixtures, runtime):
     private_data_dir = project_fixtures / 'debug'
     inventory = private_data_dir / 'inventory' / 'inv_1'
     playbook = private_data_dir / 'project' / 'debug.yml'
     container_kwargs = {
         'process_isolation_executable': runtime,
         'process_isolation': True,
-        'container_image': container_image,
+        'container_image': defaults.default_container_image
     }
     out, err, rc = run_command(
         private_data_dir=private_data_dir,
@@ -275,14 +268,14 @@ def test_run_distronode_command_within_container(project_fixtures, runtime, cont
 
 
 @pytest.mark.test_all_runtimes
-def test_run_script_within_container(project_fixtures, runtime, container_image):
+def test_run_script_within_container(project_fixtures, runtime):
     private_data_dir = project_fixtures / 'debug'
     script_path = project_fixtures / 'files'
-    container_volume_mounts = [f"{script_path}:{script_path}:Z"]
+    container_volume_mounts = ["{}:{}:Z".format(script_path, script_path)]
     container_kwargs = {
         'process_isolation_executable': runtime,
         'process_isolation': True,
-        'container_image': container_image,
+        'container_image': defaults.default_container_image,
         'container_volume_mounts': container_volume_mounts
     }
     out, _, rc = run_command(
@@ -306,8 +299,7 @@ def test_run_command_async(project_fixtures):
         cmdline_args=[str(playbook), '-i', str(inventory)]
     )
     thread.join()
-    with r.stdout as f:
-        out = f.read()
+    out = r.stdout.read()
     assert "Hello world!" in out
     assert r.status == 'successful'
 
@@ -329,19 +321,18 @@ def test_get_plugin_docs_async():
         quiet=True
     )
     thread.join()
-    with r.stdout as f:
-        out = f.read()
+    out = r.stdout.read()
     assert 'copy' in out
     assert 'file' in out
     assert r.status == 'successful'
 
 
 @pytest.mark.test_all_runtimes
-def test_get_plugin_docs_within_container(runtime, container_image):
+def test_get_plugin_docs_within_container(runtime):
     container_kwargs = {
         'process_isolation_executable': runtime,
         'process_isolation': True,
-        'container_image': container_image,
+        'container_image': defaults.default_container_image
     }
     out, _ = get_plugin_docs(
         plugin_names=['file', 'copy'],
@@ -363,11 +354,11 @@ def test_get_plugin_docs_list():
 
 
 @pytest.mark.test_all_runtimes
-def test_get_plugin_docs_list_within_container(runtime, container_image):
+def test_get_plugin_docs_list_within_container(runtime):
     container_kwargs = {
         'process_isolation_executable': runtime,
         'process_isolation': True,
-        'container_image': container_image,
+        'container_image': defaults.default_container_image
     }
     out, _ = get_plugin_list(
         list_files=True,
@@ -402,11 +393,11 @@ def test_get_inventory(project_fixtures):
 
 
 @pytest.mark.test_all_runtimes
-def test_get_inventory_within_container(project_fixtures, runtime, container_image):
+def test_get_inventory_within_container(project_fixtures, runtime):
     container_kwargs = {
         'process_isolation_executable': runtime,
         'process_isolation': True,
-        'container_image': container_image,
+        'container_image': defaults.default_container_image
     }
     private_data_dir = project_fixtures / 'debug'
     inventory1 = private_data_dir / 'inventory' / 'inv_1'
@@ -431,13 +422,11 @@ def test_run_role(project_fixtures):
         private_data_dir=private_data_dir,
         role='hello_world',
     )
-    with res.stdout as f:
-        stdout = f.read()
+    stdout = res.stdout.read()
     assert res.rc == 0, stdout
     assert 'Hello World!' in stdout
 
 
-# pylint: disable=W0613
 def test_get_role_list(project_fixtures, skipif_pre_distronode211):
     """
     Test get_role_list() running locally, specifying a playbook directory
@@ -451,7 +440,7 @@ def test_get_role_list(project_fixtures, skipif_pre_distronode211):
         }
     }
 
-    resp, _ = get_role_list(playbook_dir=pdir)
+    resp, err = get_role_list(playbook_dir=pdir)
     assert isinstance(resp, dict)
 
     # So that tests can work locally, where multiple roles might be returned,
@@ -461,7 +450,7 @@ def test_get_role_list(project_fixtures, skipif_pre_distronode211):
 
 
 @pytest.mark.test_all_runtimes
-def test_get_role_list_within_container(project_fixtures, runtime, skipif_pre_distronode211, container_image):
+def test_get_role_list_within_container(project_fixtures, runtime, skipif_pre_distronode211):
     """
     Test get_role_list() running in a container.
     """
@@ -477,9 +466,9 @@ def test_get_role_list_within_container(project_fixtures, runtime, skipif_pre_di
     container_kwargs = {
         'process_isolation_executable': runtime,
         'process_isolation': True,
-        'container_image': container_image,
+        'container_image': defaults.default_container_image
     }
-    resp, _ = get_role_list(private_data_dir=pdir, playbook_dir="/runner/project", **container_kwargs)
+    resp, err = get_role_list(private_data_dir=pdir, playbook_dir="/runner/project", **container_kwargs)
     assert isinstance(resp, dict)
     assert resp == expected
 
@@ -513,14 +502,14 @@ def test_get_role_argspec(project_fixtures, skipif_pre_distronode211):
         }
     }
 
-    resp, _ = get_role_argspec('Into_The_Mystic', playbook_dir=use_role_example)
+    resp, err = get_role_argspec('Into_The_Mystic', playbook_dir=use_role_example)
     assert isinstance(resp, dict)
     assert 'Into_The_Mystic' in resp
     assert resp['Into_The_Mystic']['entry_points'] == expected_epoint
 
 
 @pytest.mark.test_all_runtimes
-def test_get_role_argspec_within_container(project_fixtures, runtime, skipif_pre_distronode211, container_image):
+def test_get_role_argspec_within_container(project_fixtures, runtime, skipif_pre_distronode211):
     """
     Test get_role_argspec() running inside a container. Since the test container
     does not currently contain any collections or roles, specify playbook_dir
@@ -553,9 +542,9 @@ def test_get_role_argspec_within_container(project_fixtures, runtime, skipif_pre
     container_kwargs = {
         'process_isolation_executable': runtime,
         'process_isolation': True,
-        'container_image': container_image,
+        'container_image': defaults.default_container_image
     }
-    resp, _ = get_role_argspec('Into_The_Mystic', private_data_dir=pdir, playbook_dir="/runner/project", **container_kwargs)
+    resp, err = get_role_argspec('Into_The_Mystic', private_data_dir=pdir, playbook_dir="/runner/project", **container_kwargs)
     assert isinstance(resp, dict)
     assert 'Into_The_Mystic' in resp
     assert resp['Into_The_Mystic']['entry_points'] == expected_epoint

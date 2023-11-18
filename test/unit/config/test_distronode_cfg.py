@@ -10,7 +10,6 @@ from distronode_runner.utils import get_executable_path
 
 
 def test_distronode_cfg_init_defaults(tmp_path, patch_private_data_dir):
-    # pylint: disable=W0613
     rc = DistronodeCfgConfig()
 
     # Check that the private data dir is placed in our default location with our default prefix
@@ -82,20 +81,17 @@ def test_prepare_config_command_with_containerization(tmp_path, runtime, mocker)
         '--interactive',
         '--workdir',
         '/runner/project',
-        '-v', f'{rc.private_data_dir}/.ssh/:/home/runner/.ssh/',
-        '-v', f'{str(tmp_path)}/.ssh/:/root/.ssh/',
+        '-v', '{}/.ssh/:/home/runner/.ssh/'.format(rc.private_data_dir),
+        '-v', '{}/.ssh/:/root/.ssh/'.format(str(tmp_path)),
     ]
-
-    if os.path.exists('/etc/ssh/ssh_known_hosts'):
-        expected_command_start.extend(['-v', '/etc/ssh/:/etc/ssh/'])
 
     if runtime == 'podman':
         expected_command_start.extend(['--group-add=root', '--ipc=host'])
 
     expected_command_start.extend([
-        '-v', f'{rc.private_data_dir}/artifacts/:/runner/artifacts/:Z',
-        '-v', f'{rc.private_data_dir}/:/runner/:Z',
-        '--env-file', f'{rc.artifact_dir}/env.list',
+        '-v', '{}/artifacts/:/runner/artifacts/:Z'.format(rc.private_data_dir),
+        '-v', '{}/:/runner/:Z'.format(rc.private_data_dir),
+        '--env-file', '{}/env.list'.format(rc.artifact_dir),
     ])
 
     expected_command_start.extend(extra_container_args)

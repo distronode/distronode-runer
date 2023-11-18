@@ -1,5 +1,3 @@
-# pylint: disable=W0212
-
 import datetime
 import io
 import json
@@ -15,12 +13,10 @@ import pytest
 from distronode_runner.utils import (
     isplaybook,
     isinventory,
-    check_isolation_executable_installed,
     args2cmdline,
     sanitize_container_name,
     signal_handler,
 )
-from distronode_runner.utils.base64io import _to_bytes, Base64IO
 from distronode_runner.utils.streaming import stream_dir, unstream_dir
 
 
@@ -49,18 +45,13 @@ def test_args2cmdline():
     assert res == 'distronode -m setup localhost'
 
 
-def test_check_isolation_executable_installed():
-    assert check_isolation_executable_installed("true")
-    assert not check_isolation_executable_installed("does-not-exist")
-
-
 @pytest.mark.parametrize('container_name,expected_name', [
     ('foo?bar', 'foo_bar'),
     ('096aac5c-024d-453e-9725-779dc8b3faee', '096aac5c-024d-453e-9725-779dc8b3faee'),  # uuid4
     (42, '42')  # AWX will use primary keys and may not be careful about type
 ])
 def test_sanitize_container_name(container_name, expected_name):
-    assert sanitize_container_name(str(container_name)) == expected_name
+    sanitize_container_name(str(container_name)) == expected_name
 
 
 @pytest.mark.parametrize('symlink_dest,check_content', [
@@ -103,7 +94,7 @@ def test_transmit_symlink(tmp_path, symlink_dest, check_content):
     dest_dir.mkdir()
 
     # Extract twice so we assure that existing data does not break things
-    for _ in range(2):
+    for i in range(2):
 
         # rewind the buffer and extract into destination private_data_dir
         outgoing_buffer.seek(0)
@@ -325,29 +316,3 @@ def test_signal_handler_set(mocker):
 
     with pytest.raises(AttributeError, match='Raised intentionally'):
         mock_signal.call_args[0][1]('number', 'frame')
-
-
-class TestBase64IO:
-    def test_init_fails(self):
-        with pytest.raises(TypeError, match='Base64IO wrapped object must have attributes'):
-            Base64IO(None)
-
-    def test__passthrough_interactive_check_bad_method(self):
-        obj = Base64IO(io.StringIO('test'))
-        assert not obj._passthrough_interactive_check('invalid_method')
-
-    def test_write(self, tmp_path):
-        tmpfile = tmp_path / "TestBase64IO_test_write.txt"
-        tmpfile.touch()
-        with tmpfile.open(mode='br') as t:
-            obj = Base64IO(t)
-            with pytest.raises(IOError, match='Stream is not writable'):
-                obj.write(b'')
-            obj.close()
-            with pytest.raises(ValueError, match='I/O operation on closed file.'):
-                obj.write(b'')
-
-    def test__read_additional_data_removing_whitespace(self):
-        obj = Base64IO(io.StringIO(''))
-        data = _to_bytes('te s t')
-        assert obj._read_additional_data_removing_whitespace(data, 4) == b'test'

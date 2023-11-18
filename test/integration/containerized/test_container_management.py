@@ -14,7 +14,7 @@ from distronode_runner.interface import run
 def is_running(cli, runtime, container_name):
     cmd = [runtime, 'ps', '-aq', '--filter', f'name={container_name}']
     r = cli(cmd, bare=True)
-    output = f'{r.stdout}{r.stderr}'
+    output = '{}{}'.format(r.stdout, r.stderr)
     print(' '.join(cmd))
     print(output)
     return output.strip()
@@ -24,7 +24,7 @@ class CancelStandIn:
     def __init__(self, runtime, cli, container_name, delay=0.2):
         self.runtime = runtime
         self.cli = cli
-        self.delay = delay
+        self.delay = 0.2
         self.container_name = container_name
         self.checked_running = False
         self.start_time = None
@@ -37,7 +37,7 @@ class CancelStandIn:
             return False
         # guard against false passes by checking for running container
         if not self.checked_running:
-            for _ in range(5):
+            for i in range(5):
                 if is_running(self.cli, self.runtime, self.container_name):
                     break
                 time.sleep(0.2)
@@ -50,7 +50,7 @@ class CancelStandIn:
 
 
 @pytest.mark.test_all_runtimes
-def test_cancel_will_remove_container(project_fixtures, runtime, cli, container_image):
+def test_cancel_will_remove_container(project_fixtures, runtime, cli):
     private_data_dir = project_fixtures / 'sleep'
     ident = uuid4().hex[:12]
     container_name = f'distronode_runner_{ident}'
@@ -62,14 +62,12 @@ def test_cancel_will_remove_container(project_fixtures, runtime, cli, container_
         playbook='sleep.yml',
         settings={
             'process_isolation_executable': runtime,
-            'process_isolation': True,
-            'container_image': container_image,
+            'process_isolation': True
         },
         cancel_callback=cancel_standin.cancel,
         ident=ident
     )
-    with res.stdout as f:
-        assert res.rc == 254, f.read()
+    assert res.rc == 254, res.stdout.read()
     assert res.status == 'canceled'
 
     assert not is_running(
@@ -78,7 +76,7 @@ def test_cancel_will_remove_container(project_fixtures, runtime, cli, container_
 
 
 @pytest.mark.test_all_runtimes
-def test_non_owner_install(mocker, project_fixtures, runtime, container_image):
+def test_non_owner_install(mocker, project_fixtures, runtime):
     """Simulates a run on a conputer where distronode-runner install is not owned by current user"""
     mocker.patch('distronode_runner.utils.is_dir_owner', return_value=False)
 
@@ -88,12 +86,10 @@ def test_non_owner_install(mocker, project_fixtures, runtime, container_image):
         playbook='debug.yml',
         settings={
             'process_isolation_executable': runtime,
-            'process_isolation': True,
-            'container_image': container_image,
+            'process_isolation': True
         }
     )
-    with res.stdout as f:
-        stdout = f.read()
+    stdout = res.stdout.read()
     assert res.rc == 0, stdout
     assert res.status == 'successful'
 
@@ -122,8 +118,7 @@ def test_invalid_registry_host(tmp_path, runtime):
     assert res.rc > 0
     assert os.path.exists(res.config.registry_auth_path)
 
-    with res.stdout as f:
-        result_stdout = f.read()
+    result_stdout = res.stdout.read()
     auth_file_path = os.path.join(res.config.registry_auth_path, 'config.json')
     registry_conf = os.path.join(res.config.registry_auth_path, 'registries.conf')
     error_msg = 'access to the requested resource is not authorized'

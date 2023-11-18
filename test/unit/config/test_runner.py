@@ -1,21 +1,29 @@
 # -*- coding: utf-8 -*-
 
 from functools import partial
+from io import StringIO
 import os
 import re
-
-from test.utils.common import RSAKey
+import six
 
 from pexpect import TIMEOUT, EOF
+
 import pytest
 
 from distronode_runner.config.runner import RunnerConfig, ExecutionMode
+from distronode_runner.interface import init_runner
 from distronode_runner.loader import ArtifactLoader
 from distronode_runner.exceptions import ConfigurationError
+from test.utils.common import RSAKey
+
+try:
+    Pattern = re._pattern_type
+except AttributeError:
+    # Python 3.7
+    Pattern = re.Pattern
 
 
-def load_file_side_effect(path, value, *args, **kwargs):
-    # pylint: disable=W0613
+def load_file_side_effect(path, value=None, *args, **kwargs):
     if args[0] == path:
         if value:
             return value
@@ -33,7 +41,7 @@ def test_runner_config_init_defaults(mocker):
     assert rc.limit is None
     assert rc.module is None
     assert rc.module_args is None
-    assert rc.artifact_dir == os.path.join(f'/artifacts/{rc.ident}')
+    assert rc.artifact_dir == os.path.join('/artifacts/%s' % rc.ident)
     assert isinstance(rc.loader, ArtifactLoader)
 
 
@@ -71,20 +79,20 @@ def test_runner_config_project_dir(mocker):
 def test_prepare_environment_vars_only_strings(mocker):
     mocker.patch('os.makedirs', return_value=True)
 
-    rc = RunnerConfig(private_data_dir="/", envvars={'D': 'D'})
+    rc = RunnerConfig(private_data_dir="/", envvars=dict(D='D'))
 
-    value = {'A': 1, 'B': True, 'C': 'foo'}
+    value = dict(A=1, B=True, C="foo")
     envvar_side_effect = partial(load_file_side_effect, 'env/envvars', value)
 
     mocker.patch.object(rc.loader, 'load_file', side_effect=envvar_side_effect)
 
     rc.prepare_env()
     assert 'A' in rc.env
-    assert isinstance(rc.env['A'], str)
+    assert isinstance(rc.env['A'], six.string_types)
     assert 'B' in rc.env
-    assert isinstance(rc.env['B'], str)
+    assert isinstance(rc.env['B'], six.string_types)
     assert 'C' in rc.env
-    assert isinstance(rc.env['C'], str)
+    assert isinstance(rc.env['C'], six.string_types)
     assert 'D' in rc.env
     assert rc.env['D'] == 'D'
 
@@ -130,7 +138,7 @@ def test_prepare_env_passwords(mocker):
     rc.expect_passwords.pop(TIMEOUT)
     rc.expect_passwords.pop(EOF)
     assert len(rc.expect_passwords) == 1
-    assert isinstance(list(rc.expect_passwords.keys())[0], re.Pattern)
+    assert isinstance(list(rc.expect_passwords.keys())[0], Pattern)
     assert 'secret' in rc.expect_passwords.values()
 
 
@@ -239,7 +247,7 @@ def test_prepare_env_directory_isolation_from_settings(mocker, project_fixtures)
     mkdtemp.assert_called_once_with(prefix='runner_di_', dir='/tmp/runner')
 
     # The project files should be copied to the isolation path.
-    copy_tree.assert_called_once_with(rc.project_dir, rc.directory_isolation_path, dirs_exist_ok=True, symlinks=True)
+    copy_tree.assert_called_once_with(rc.project_dir, rc.directory_isolation_path, symlinks=True)
 
 
 def test_prepare_inventory(mocker):
@@ -295,7 +303,7 @@ def test_generate_distronode_command(mocker):
     cmd = rc.generate_distronode_command()
     assert cmd == ['distronode-playbook', '-i', '/inventory', 'main.yaml']
 
-    rc.extra_vars = {'test': 'key'}
+    rc.extra_vars = dict(test="key")
     cmd = rc.generate_distronode_command()
     assert cmd == ['distronode-playbook', '-i', '/inventory', '-e', '{"test":"key"}', 'main.yaml']
     rc.extra_vars = None
@@ -373,8 +381,8 @@ def test_generate_distronode_command_with_dict_extravars(mocker):
 
 
 @pytest.mark.parametrize('cmdline,tokens', [
-    ('--tags foo --skip-tags', ['--tags', 'foo', '--skip-tags']),
-    ('--limit "䉪ቒ칸ⱷ?噂폄蔆㪗輥"', ['--limit', '䉪ቒ칸ⱷ?噂폄蔆㪗輥']),
+    (u'--tags foo --skip-tags', ['--tags', 'foo', '--skip-tags']),
+    (u'--limit "䉪ቒ칸ⱷ?噂폄蔆㪗輥"', ['--limit', '䉪ቒ칸ⱷ?噂폄蔆㪗輥']),
 ])
 def test_generate_distronode_command_with_cmdline_args(cmdline, tokens, mocker):
     mocker.patch('os.makedirs', return_value=True)
@@ -397,16 +405,16 @@ def test_prepare_command_defaults(mocker):
 
     rc = RunnerConfig('/')
 
-    cmd_side_effect = partial(load_file_side_effect, 'args', None)
+    cmd_side_effect = partial(load_file_side_effect, 'args')
 
     def generate_side_effect():
-        return ['test', '"string with spaces"']
+        return StringIO(u'test "string with spaces"')
 
     mocker.patch.object(rc.loader, 'load_file', side_effect=cmd_side_effect)
     mocker.patch.object(rc, 'generate_distronode_command', side_effect=generate_side_effect)
 
     rc.prepare_command()
-    assert rc.command == ['test', '"string with spaces"']
+    rc.command == ['test', '"string with spaces"']
 
 
 def test_prepare_with_defaults(mocker):
@@ -449,7 +457,7 @@ def test_prepare(mocker):
     assert rc.prepare_command.called
 
     assert not hasattr(rc, 'ssh_key_path')
-    assert rc.command == []
+    assert not hasattr(rc, 'command')
 
     assert rc.env['DISTRONODE_STDOUT_CALLBACK'] == 'awx_display'
     assert rc.env['DISTRONODE_RETRY_FILES_ENABLED'] == 'False'
@@ -518,6 +526,26 @@ def test_wrap_args_with_ssh_agent_silent(mocker):
     ]
 
 
+@pytest.mark.parametrize('executable_present', [True, False])
+def test_process_isolation_executable_not_found(executable_present, mocker):
+    mocker.patch('distronode_runner.runner_config.RunnerConfig.prepare')
+    mock_sys = mocker.patch('distronode_runner.interface.sys')
+    mock_subprocess = mocker.patch('distronode_runner.utils.subprocess')
+    # Mock subprocess.Popen indicates if
+    # process isolation executable is present
+    mock_proc = mocker.Mock()
+    mock_proc.returncode = (0 if executable_present else 1)
+    mock_subprocess.Popen.return_value = mock_proc
+
+    kwargs = {'process_isolation': True,
+              'process_isolation_executable': 'fake_executable'}
+    init_runner(**kwargs)
+    if executable_present:
+        assert not mock_sys.exit.called
+    else:
+        assert mock_sys.exit.called
+
+
 def test_bwrap_process_isolation_defaults(mocker):
     mocker.patch('os.makedirs', return_value=True)
 
@@ -552,7 +580,6 @@ def test_bwrap_process_isolation_defaults(mocker):
 
 
 def test_bwrap_process_isolation_and_directory_isolation(mocker, patch_private_data_dir, tmp_path):
-    # pylint: disable=W0613
 
     def mock_exists(path):
         if path == "/project":
@@ -566,7 +593,7 @@ def test_bwrap_process_isolation_and_directory_isolation(mocker, patch_private_d
         def load_file(self, path, objtype=None, encoding='utf-8'):
             raise ConfigurationError
 
-        def isfile(self, _):
+        def isfile(self, path):
             return False
 
     mocker.patch('distronode_runner.config.runner.os.makedirs', return_value=True)
@@ -671,7 +698,6 @@ def test_container_volume_mounting_with_Z(mocker, tmp_path):
     rc = RunnerConfig(str(tmp_path))
     rc.container_volume_mounts = ['/tmp/project_path:/tmp/project_path:Z']
     rc.container_name = 'foo'
-    rc.container_image = 'bar'
     rc.env = {}
     new_args = rc.wrap_args_for_containerization(['distronode-playbook', 'foo.yml'], 0, None)
     assert new_args[0] == 'podman'
@@ -681,7 +707,7 @@ def test_container_volume_mounting_with_Z(mocker, tmp_path):
             if mount.endswith(':/tmp/project_path/:Z'):
                 break
     else:
-        raise Exception(f'Could not find expected mount, args: {new_args}')
+        raise Exception('Could not find expected mount, args: {}'.format(new_args))
 
 
 @pytest.mark.parametrize('runtime', ('docker', 'podman'))
@@ -711,7 +737,7 @@ def test_containerization_settings(tmp_path, runtime, mocker):
 
     # validate DISTRONODE_CALLBACK_PLUGINS contains callback plugin dir
     callback_plugins = rc.env['DISTRONODE_CALLBACK_PLUGINS'].split(':')
-    callback_dir = os.path.join("/runner/artifacts", str(rc.ident), "callback")
+    callback_dir = os.path.join("/runner/artifacts", "{}".format(rc.ident), "callback")
     assert callback_dir in callback_plugins
 
     extra_container_args = []
@@ -721,11 +747,11 @@ def test_containerization_settings(tmp_path, runtime, mocker):
         extra_container_args = [f'--user={os.getuid()}']
 
     expected_command_start = [runtime, 'run', '--rm', '--tty', '--interactive', '--workdir', '/runner/project'] + \
-        ['-v', f'{rc.private_data_dir}/:/runner/:Z'] + \
+        ['-v', '{}/:/runner/:Z'.format(rc.private_data_dir)] + \
         ['-v', '/host1/:/container1/', '-v', '/host2/:/container2/'] + \
-        ['--env-file', f'{rc.artifact_dir}/env.list'] + \
+        ['--env-file', '{}/env.list'.format(rc.artifact_dir)] + \
         extra_container_args + \
         ['--name', 'distronode_runner_foo'] + \
-        ['my_container', 'distronode-playbook', '-i', '/runner/inventory', 'main.yaml']
+        ['my_container', 'distronode-playbook', '-i', '/runner/inventory/hosts', 'main.yaml']
 
     assert expected_command_start == rc.command

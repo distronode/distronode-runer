@@ -1,6 +1,5 @@
-from os import remove
-
 from distronode_runner.utils import open_fifo_write
+from os import remove
 
 
 def test_fifo_write_bytes(tmp_path):
