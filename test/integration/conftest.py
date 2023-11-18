@@ -1,38 +1,31 @@
 import json
 import os
 import subprocess
-import pathlib
-import random
-
-from string import ascii_lowercase
-
-import pexpect
-import pytest
 import yaml
+import pytest
+import pexpect
 
 from distronode_runner.config.runner import RunnerConfig
-
-here = pathlib.Path(__file__).parent
 
 
 @pytest.fixture(scope='function')
 def rc(tmp_path):
-    conf = RunnerConfig(str(tmp_path))
-    conf.suppress_distronode_output = True
-    conf.expect_passwords = {
+    rc = RunnerConfig(str(tmp_path))
+    rc.suppress_distronode_output = True
+    rc.expect_passwords = {
         pexpect.TIMEOUT: None,
         pexpect.EOF: None
     }
-    conf.cwd = str(tmp_path)
-    conf.env = {}
-    conf.job_timeout = 10
-    conf.idle_timeout = 0
-    conf.pexpect_timeout = 2.
-    conf.pexpect_use_poll = True
-    return conf
+    rc.cwd = str(tmp_path)
+    rc.env = {}
+    rc.job_timeout = 10
+    rc.idle_timeout = 0
+    rc.pexpect_timeout = 2.
+    rc.pexpect_use_poll = True
+    return rc
 
 
-class CompletedProcessProxy:
+class CompletedProcessProxy(object):
 
     def __init__(self, result):
         self.result = result
@@ -56,7 +49,7 @@ class CompletedProcessProxy:
 
 
 @pytest.fixture(scope='function')
-def cli():
+def cli(request):
     def run(args, *a, **kw):
         if not kw.pop('bare', None):
             args = ['distronode-runner'] + args
@@ -75,7 +68,7 @@ def cli():
         })
 
         try:
-            ret = CompletedProcessProxy(subprocess.run(' '.join(args), check=kw.pop('check'), shell=True, *a, **kw))
+            ret = CompletedProcessProxy(subprocess.run(' '.join(args), shell=True, *a, **kw))
         except subprocess.CalledProcessError as err:
             pytest.fail(
                 f"Running {err.cmd} resulted in a non-zero return code: {err.returncode} - stdout: {err.stdout}, stderr: {err.stderr}"
@@ -83,45 +76,3 @@ def cli():
 
         return ret
     return run
-
-
-@pytest.fixture
-def container_image(request, cli, tmp_path):  # pylint: disable=W0621
-    try:
-        containerized = request.getfixturevalue('containerized')
-        if not containerized:
-            yield None
-            return
-    except Exception:
-        # Test func doesn't use containerized
-        pass
-
-    if (env_image_name := os.getenv('RUNNER_TEST_IMAGE_NAME')):
-        yield env_image_name
-        return
-
-    cli(
-        ['pyproject-build', '-w', '-o', str(tmp_path)],
-        cwd=here.parent.parent,
-        bare=True,
-    )
-
-    wheel = next(tmp_path.glob('*.whl'))  # pylint: disable=R1708
-
-    runtime = request.getfixturevalue('runtime')
-    dockerfile_path = tmp_path / 'Dockerfile'
-    dockerfile_path.write_text(
-        (here / 'Dockerfile').read_text()
-    )
-    random_string = ''.join(random.choice(ascii_lowercase) for i in range(10))
-    image_name = f'distronode-runner-{random_string}-event-test'
-
-    cli(
-        [runtime, 'build', '--build-arg', f'WHEEL={wheel.name}', '--rm=true', '-t', image_name, '-f', str(dockerfile_path), str(tmp_path)],
-        bare=True,
-    )
-    yield image_name
-    cli(
-        [runtime, 'rmi', '-f', image_name],
-        bare=True,
-    )

@@ -2,20 +2,27 @@
 
 import os
 import re
+import six
+
 from functools import partial
 
-from test.utils.common import RSAKey
-
 import pytest
+
 from pexpect import TIMEOUT, EOF
 
 from distronode_runner.config._base import BaseConfig, BaseExecutionMode
 from distronode_runner.loader import ArtifactLoader
 from distronode_runner.exceptions import ConfigurationError
+from test.utils.common import RSAKey
+
+try:
+    Pattern = re._pattern_type
+except AttributeError:
+    # Python 3.7
+    Pattern = re.Pattern
 
 
-def load_file_side_effect(path, value, *args, **kwargs):
-    # pylint: disable=W0613
+def load_file_side_effect(path, value=None, *args, **kwargs):
     if args[0] == path:
         if value:
             return value
@@ -37,7 +44,6 @@ def test_base_config_init_defaults(tmp_path):
 
 
 def test_base_config_with_artifact_dir(tmp_path, patch_private_data_dir):
-    # pylint: disable=W0613
     rc = BaseConfig(artifact_dir=tmp_path.joinpath('this-is-some-dir').as_posix())
     assert rc.artifact_dir == tmp_path.joinpath('this-is-some-dir').joinpath(rc.ident).as_posix()
 
@@ -47,7 +53,7 @@ def test_base_config_with_artifact_dir(tmp_path, patch_private_data_dir):
     assert rc.private_data_dir.startswith(base_private_data_dir)
     assert len(rc.private_data_dir) > len(base_private_data_dir)
 
-    rc.prepare_env()
+    rc._prepare_env()
     assert not tmp_path.joinpath('artifacts').exists()
     assert tmp_path.joinpath('this-is-some-dir').exists()
 
@@ -68,41 +74,41 @@ def test_base_config_project_dir(tmp_path):
 
 
 def test_prepare_environment_vars_only_strings_from_file(mocker):
-    rc = BaseConfig(envvars={'D': 'D'})
+    rc = BaseConfig(envvars=dict(D='D'))
 
-    value = {"A": 1, "B": True, "C": "foo"}
+    value = dict(A=1, B=True, C="foo")
     envvar_side_effect = partial(load_file_side_effect, 'env/envvars', value)
 
     mocker.patch.object(rc.loader, 'load_file', side_effect=envvar_side_effect)
 
-    rc.prepare_env()
+    rc._prepare_env()
     assert 'A' in rc.env
-    assert isinstance(rc.env['A'], str)
+    assert isinstance(rc.env['A'], six.string_types)
     assert 'B' in rc.env
-    assert isinstance(rc.env['B'], str)
+    assert isinstance(rc.env['B'], six.string_types)
     assert 'C' in rc.env
-    assert isinstance(rc.env['C'], str)
+    assert isinstance(rc.env['C'], six.string_types)
     assert 'D' in rc.env
     assert rc.env['D'] == 'D'
 
 
 def test_prepare_environment_vars_only_strings_from_interface():
-    rc = BaseConfig(envvars={'D': 'D', 'A': 1, 'B': True, 'C': 'foo'})
-    rc.prepare_env()
+    rc = BaseConfig(envvars=dict(D='D', A=1, B=True, C="foo"))
+    rc._prepare_env()
 
     assert 'A' in rc.env
-    assert isinstance(rc.env['A'], str)
+    assert isinstance(rc.env['A'], six.string_types)
     assert 'B' in rc.env
-    assert isinstance(rc.env['B'], str)
+    assert isinstance(rc.env['B'], six.string_types)
     assert 'C' in rc.env
-    assert isinstance(rc.env['C'], str)
+    assert isinstance(rc.env['C'], six.string_types)
     assert 'D' in rc.env
     assert rc.env['D'] == 'D'
 
 
 def test_prepare_environment_pexpect_defaults():
     rc = BaseConfig()
-    rc.prepare_env()
+    rc._prepare_env()
 
     assert len(rc.expect_passwords) == 2
     assert TIMEOUT in rc.expect_passwords
@@ -118,30 +124,30 @@ def test_prepare_env_passwords(mocker):
     password_side_effect = partial(load_file_side_effect, 'env/passwords', value)
 
     mocker.patch.object(rc.loader, 'load_file', side_effect=password_side_effect)
-    rc.prepare_env()
+    rc._prepare_env()
     rc.expect_passwords.pop(TIMEOUT)
     rc.expect_passwords.pop(EOF)
     assert len(rc.expect_passwords) == 1
-    assert isinstance(list(rc.expect_passwords.keys())[0], re.Pattern)
+    assert isinstance(list(rc.expect_passwords.keys())[0], Pattern)
     assert 'secret' in rc.expect_passwords.values()
 
 
 def test_prepare_environment_subprocess_defaults():
     rc = BaseConfig()
-    rc.prepare_env(runner_mode="subprocess")
+    rc._prepare_env(runner_mode="subprocess")
     assert rc.subprocess_timeout is None
 
 
 def test_prepare_environment_subprocess_timeout():
     rc = BaseConfig(timeout=100)
-    rc.prepare_env(runner_mode="subprocess")
+    rc._prepare_env(runner_mode="subprocess")
 
     assert rc.subprocess_timeout == 100
 
 
 def test_prepare_env_settings_defaults():
     rc = BaseConfig()
-    rc.prepare_env()
+    rc._prepare_env()
     assert rc.settings == {}
 
 
@@ -152,13 +158,13 @@ def test_prepare_env_settings(mocker):
     settings_side_effect = partial(load_file_side_effect, 'env/settings', value)
 
     mocker.patch.object(rc.loader, 'load_file', side_effect=settings_side_effect)
-    rc.prepare_env()
+    rc._prepare_env()
     assert rc.settings == value
 
 
 def test_prepare_env_sshkey_defaults():
     rc = BaseConfig()
-    rc.prepare_env()
+    rc._prepare_env()
     assert rc.ssh_key_data is None
 
 
@@ -170,13 +176,13 @@ def test_prepare_env_sshkey(mocker):
     sshkey_side_effect = partial(load_file_side_effect, 'env/ssh_key', rsa_private_key_value)
 
     mocker.patch.object(rc.loader, 'load_file', side_effect=sshkey_side_effect)
-    rc.prepare_env()
+    rc._prepare_env()
     assert rc.ssh_key_data == rsa_private_key_value
 
 
 def test_prepare_env_defaults():
     rc = BaseConfig(host_cwd='/tmp/project')
-    rc.prepare_env()
+    rc._prepare_env()
 
     assert rc.idle_timeout is None
     assert rc.job_timeout is None
@@ -195,10 +201,10 @@ def test_prepare_env_distronode_vars(mocker, tmp_path):
     rc.env = {}
     rc.execution_mode = BaseExecutionMode.DISTRONODE_COMMANDS
 
-    rc.prepare_env()
+    rc._prepare_env()
 
     assert not hasattr(rc, 'ssh_key_path')
-    assert rc.command == []
+    assert not hasattr(rc, 'command')
 
     assert rc.env['DISTRONODE_STDOUT_CALLBACK'] == 'awx_display'
     assert rc.env['DISTRONODE_RETRY_FILES_ENABLED'] == 'False'
@@ -218,7 +224,7 @@ def test_prepare_with_ssh_key(mocker, tmp_path):
     rc.ssh_key_data = rsa_key.private
     rc.command = 'distronode-playbook'
     rc.cmdline_args = []
-    rc.prepare_env()
+    rc._prepare_env()
 
     assert rc.ssh_key_path == custom_artifacts.joinpath('ssh_key_data').as_posix()
     assert open_fifo_write_mock.called
@@ -279,7 +285,7 @@ def test_container_volume_mounting_with_Z(tmp_path, mocker):
             if mount.endswith('project_path/:Z'):
                 break
     else:
-        raise Exception(f'Could not find expected mount, args: {new_args}')
+        raise Exception('Could not find expected mount, args: {}'.format(new_args))
 
 
 @pytest.mark.parametrize('runtime', ('docker', 'podman'))
@@ -300,8 +306,8 @@ def test_containerization_settings(tmp_path, runtime, mocker):
     rc.container_image = 'my_container'
     rc.container_volume_mounts = ['/host1:/container1', 'host2:/container2']
     rc.execution_mode = BaseExecutionMode.DISTRONODE_COMMANDS
-    rc.prepare_env()
-    rc.handle_command_wrap(rc.execution_mode, rc.cmdline_args)
+    rc._prepare_env()
+    rc._handle_command_wrap(rc.execution_mode, rc.cmdline_args)
 
     extra_container_args = []
     if runtime == 'podman':
@@ -317,20 +323,17 @@ def test_containerization_settings(tmp_path, runtime, mocker):
         '--interactive',
         '--workdir',
         '/runner/project',
-        '-v', f'{str(tmp_path)}/.ssh/:/home/runner/.ssh/',
-        '-v', f'{str(tmp_path)}/.ssh/:/root/.ssh/',
+        '-v', '{}/.ssh/:/home/runner/.ssh/'.format(str(tmp_path)),
+        '-v', '{}/.ssh/:/root/.ssh/'.format(str(tmp_path)),
     ]
-
-    if os.path.exists('/etc/ssh/ssh_known_hosts'):
-        expected_command_start.extend(['-v', '/etc/ssh/:/etc/ssh/'])
 
     if runtime == 'podman':
         expected_command_start.extend(['--group-add=root', '--ipc=host'])
 
     expected_command_start.extend([
-        '-v', f'{rc.private_data_dir}/artifacts/:/runner/artifacts/:Z',
-        '-v', f'{rc.private_data_dir}/:/runner/:Z',
-        '--env-file', f'{rc.artifact_dir}/env.list',
+        '-v', '{}/artifacts/:/runner/artifacts/:Z'.format(rc.private_data_dir),
+        '-v', '{}/:/runner/:Z'.format(rc.private_data_dir),
+        '--env-file', '{}/env.list'.format(rc.artifact_dir),
     ])
 
     expected_command_start.extend(extra_container_args)
@@ -358,8 +361,8 @@ def test_containerization_unsafe_write_setting(tmp_path, runtime, mocker):
     rc.container_volume_mounts = ['/host1:/container1', 'host2:/container2']
     mock_containerized.return_value = True
     rc.execution_mode = BaseExecutionMode.DISTRONODE_COMMANDS
-    rc.prepare_env()
-    rc.handle_command_wrap(rc.execution_mode, rc.cmdline_args)
+    rc._prepare_env()
+    rc._handle_command_wrap(rc.execution_mode, rc.cmdline_args)
 
     expected = {
         'docker': None,

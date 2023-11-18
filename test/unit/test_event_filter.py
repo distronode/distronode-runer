@@ -1,11 +1,9 @@
-# pylint: disable=W0621
-
+import pytest
 import base64
 import json
 from io import StringIO
-from pprint import pprint
 
-import pytest
+from six.moves import xrange
 
 from distronode_runner.utils import OutputEventFilter
 
@@ -16,12 +14,12 @@ EXAMPLE_UUID = '890773f5-fe6d-4091-8faf-bdc8021d65dd'
 def write_encoded_event_data(fileobj, data):
     b64data = base64.b64encode(json.dumps(data).encode('utf-8')).decode()
     # pattern corresponding to OutputEventFilter expectation
-    fileobj.write('\x1b[K')
-    for offset in range(0, len(b64data), MAX_WIDTH):
+    fileobj.write(u'\x1b[K')
+    for offset in xrange(0, len(b64data), MAX_WIDTH):
         chunk = b64data[offset:offset + MAX_WIDTH]
-        escaped_chunk = f'{chunk}\x1b[{len(chunk)}D'
+        escaped_chunk = u'{}\x1b[{}D'.format(chunk, len(chunk))
         fileobj.write(escaped_chunk)
-    fileobj.write('\x1b[K')
+    fileobj.write(u'\x1b[K')
 
 
 @pytest.fixture
@@ -45,7 +43,7 @@ def job_event_callback(fake_callback, fake_cache):
     def method(event_data):
         print('fake callback called')
         if 'uuid' in event_data:
-            cache_event = fake_cache.get(f":1:ev-{event_data['uuid']}", None)
+            cache_event = fake_cache.get(':1:ev-{}'.format(event_data['uuid']), None)
             if cache_event is not None:
                 event_data.update(cache_event)
         fake_callback.append(event_data)
@@ -54,12 +52,12 @@ def job_event_callback(fake_callback, fake_cache):
 
 def test_event_recomb(fake_callback, fake_cache, wrapped_handle):
     # Pretend that this is done by the Distronode callback module
-    fake_cache[f':1:ev-{EXAMPLE_UUID}'] = {'event': 'foo'}
+    fake_cache[':1:ev-{}'.format(EXAMPLE_UUID)] = {'event': 'foo'}
     write_encoded_event_data(wrapped_handle, {
         'uuid': EXAMPLE_UUID
     })
-    wrapped_handle.write('\r\nTASK [Gathering Facts] *********************************************************\n')
-    wrapped_handle.write('\u001b[0;33mchanged: [localhost]\u001b[0m\n')
+    wrapped_handle.write(u'\r\nTASK [Gathering Facts] *********************************************************\n')
+    wrapped_handle.write(u'\u001b[0;33mchanged: [localhost]\u001b[0m\n')
     write_encoded_event_data(wrapped_handle, {})
     # stop pretending
 
@@ -71,8 +69,8 @@ def test_event_recomb(fake_callback, fake_cache, wrapped_handle):
 
 def test_separate_verbose_events(fake_callback, wrapped_handle):
     # Pretend that this is done by the Distronode callback module
-    wrapped_handle.write('Using /etc/distronode/distronode.cfg as config file\n')
-    wrapped_handle.write('SSH password: \n')
+    wrapped_handle.write(u'Using /etc/distronode/distronode.cfg as config file\n')
+    wrapped_handle.write(u'SSH password: \n')
     write_encoded_event_data(wrapped_handle, {  # associated with _next_ event
         'uuid': EXAMPLE_UUID
     })
@@ -86,7 +84,7 @@ def test_separate_verbose_events(fake_callback, wrapped_handle):
 
 def test_large_data_payload(fake_callback, fake_cache, wrapped_handle):
     # Pretend that this is done by the Distronode callback module
-    fake_cache[f':1:ev-{EXAMPLE_UUID}'] = {'event': 'foo'}
+    fake_cache[':1:ev-{}'.format(EXAMPLE_UUID)] = {'event': 'foo'}
     event_data_to_encode = {
         'uuid': EXAMPLE_UUID,
         'host': 'localhost',
@@ -94,8 +92,8 @@ def test_large_data_payload(fake_callback, fake_cache, wrapped_handle):
     }
     assert len(json.dumps(event_data_to_encode)) > MAX_WIDTH
     write_encoded_event_data(wrapped_handle, event_data_to_encode)
-    wrapped_handle.write('\r\nTASK [Gathering Facts] *********************************************************\n')
-    wrapped_handle.write('\u001b[0;33mchanged: [localhost]\u001b[0m\n')
+    wrapped_handle.write(u'\r\nTASK [Gathering Facts] *********************************************************\n')
+    wrapped_handle.write(u'\u001b[0;33mchanged: [localhost]\u001b[0m\n')
     write_encoded_event_data(wrapped_handle, {})
     # stop pretending
 
@@ -109,7 +107,7 @@ def test_large_data_payload(fake_callback, fake_cache, wrapped_handle):
 
 def test_event_lazy_parsing(fake_callback, fake_cache, wrapped_handle):
     # Pretend that this is done by the Distronode callback module
-    fake_cache[f':1:ev-{EXAMPLE_UUID}'] = {'event': 'foo'}
+    fake_cache[':1:ev-{}'.format(EXAMPLE_UUID)] = {'event': 'foo'}
     buff = StringIO()
     event_data_to_encode = {
         'uuid': EXAMPLE_UUID,
@@ -127,8 +125,8 @@ def test_event_lazy_parsing(fake_callback, fake_cache, wrapped_handle):
     for chunk in (start_token_chunk, start_token_remainder, body, remainder):
         wrapped_handle.write(chunk)
 
-    wrapped_handle.write('\r\nTASK [Gathering Facts] *********************************************************\n')
-    wrapped_handle.write('\u001b[0;33mchanged: [localhost]\u001b[0m\n')
+    wrapped_handle.write(u'\r\nTASK [Gathering Facts] *********************************************************\n')
+    wrapped_handle.write(u'\u001b[0;33mchanged: [localhost]\u001b[0m\n')
     write_encoded_event_data(wrapped_handle, {})
     # stop pretending
 
@@ -143,12 +141,11 @@ def test_event_lazy_parsing(fake_callback, fake_cache, wrapped_handle):
 @pytest.mark.timeout(1)
 def test_large_stdout_blob():
     def _callback(*args, **kw):
-        # pylint: disable=W0613
         pass
 
     f = OutputEventFilter(StringIO(), _callback)
-    for _ in range(1024 * 10):
-        f.write('x' * 1024)
+    for x in range(1024 * 10):
+        f.write(u'x' * 1024)
 
 
 def test_verbose_line_buffering():
@@ -158,7 +155,7 @@ def test_verbose_line_buffering():
         events.append(event_data)
 
     f = OutputEventFilter(StringIO(), _callback)
-    f.write('one two\r\n\r\n')
+    f.write(u'one two\r\n\r\n')
 
     assert len(events) == 2
     assert events[0]['start_line'] == 0
@@ -169,9 +166,9 @@ def test_verbose_line_buffering():
     assert events[1]['end_line'] == 2
     assert events[1]['stdout'] == ''
 
-    f.write('three')
+    f.write(u'three')
     assert len(events) == 2
-    f.write('\r\nfou')
+    f.write(u'\r\nfou')
 
     # three is not pushed to buffer until its line completes
     assert len(events) == 3
@@ -179,15 +176,15 @@ def test_verbose_line_buffering():
     assert events[2]['end_line'] == 3
     assert events[2]['stdout'] == 'three'
 
-    f.write('r\r')
-    f.write('\nfi')
+    f.write(u'r\r')
+    f.write(u'\nfi')
 
     assert events[3]['start_line'] == 3
     assert events[3]['end_line'] == 4
     assert events[3]['stdout'] == 'four'
 
-    f.write('ve')
-    f.write('\r\n')
+    f.write(u've')
+    f.write(u'\r\n')
 
     assert len(events) == 5
     assert events[4]['start_line'] == 4
@@ -196,6 +193,7 @@ def test_verbose_line_buffering():
 
     f.close()
 
+    from pprint import pprint
     pprint(events)
     assert len(events) == 6
 

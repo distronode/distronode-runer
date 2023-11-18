@@ -1,6 +1,7 @@
 extends: default
 
-ignore-from-file: .gitignore
+ignore: |
+  .tox
 
 rules:
   braces:

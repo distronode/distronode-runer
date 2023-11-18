@@ -1,8 +1,7 @@
-# pylint: disable=W0212,W0621
-
 from io import BytesIO
 
 from pytest import raises, fixture
+from six import string_types
 
 import distronode_runner.loader
 
@@ -55,7 +54,7 @@ def test_abspath(loader, tmp_path):
 
 
 def test_load_file_text_cache_hit(loader, mocker, tmp_path):
-    mock_get_contents = mocker.patch.object(distronode_runner.loader.ArtifactLoader, '_get_contents')
+    mock_get_contents = mocker.patch.object(distronode_runner.loader.ArtifactLoader, 'get_contents')
     mock_get_contents.return_value = 'test\nstring'
 
     assert not loader._cache
@@ -63,7 +62,7 @@ def test_load_file_text_cache_hit(loader, mocker, tmp_path):
     testfile = tmp_path.joinpath('test').as_posix()
 
     # cache miss
-    res = loader.load_file(testfile, str)
+    res = loader.load_file(testfile, string_types)
     assert mock_get_contents.called
     assert mock_get_contents.called_with_args(testfile)
     assert res == b'test\nstring'
@@ -72,14 +71,14 @@ def test_load_file_text_cache_hit(loader, mocker, tmp_path):
     mock_get_contents.reset_mock()
 
     # cache hit
-    res = loader.load_file(testfile, str)
+    res = loader.load_file(testfile, string_types)
     assert not mock_get_contents.called
     assert res == b'test\nstring'
     assert testfile in loader._cache
 
 
 def test_load_file_json(loader, mocker, tmp_path):
-    mock_get_contents = mocker.patch.object(distronode_runner.loader.ArtifactLoader, '_get_contents')
+    mock_get_contents = mocker.patch.object(distronode_runner.loader.ArtifactLoader, 'get_contents')
     mock_get_contents.return_value = '---\ntest: string'
 
     assert not loader._cache
@@ -94,7 +93,7 @@ def test_load_file_json(loader, mocker, tmp_path):
 
 
 def test_load_file_type_check(loader, mocker, tmp_path):
-    mock_get_contents = mocker.patch.object(distronode_runner.loader.ArtifactLoader, '_get_contents')
+    mock_get_contents = mocker.patch.object(distronode_runner.loader.ArtifactLoader, 'get_contents')
     mock_get_contents.return_value = '---\ntest: string'
 
     assert not loader._cache
@@ -125,15 +124,15 @@ def test_get_contents_ok(loader, mocker):
 
     mock_open.return_value.__enter__.return_value = handler
 
-    res = loader._get_contents('/tmp')
+    res = loader.get_contents('/tmp')
     assert res == b'test string'
 
 
 def test_get_contents_invalid_path(loader, tmp_path):
     with raises(ConfigurationError):
-        loader._get_contents(tmp_path.joinpath('invalid').as_posix())
+        loader.get_contents(tmp_path.joinpath('invalid').as_posix())
 
 
 def test_get_contents_exception(loader, tmp_path):
     with raises(ConfigurationError):
-        loader._get_contents(tmp_path.as_posix())
+        loader.get_contents(tmp_path.as_posix())
