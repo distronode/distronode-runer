@@ -1,0 +1,46 @@
+CHANGES
+=======
+
+* Update Dockerfile
+* Update triage\_new.yml
+
+v2.0.0
+------
+
+* Update .git\_archival.txt
+* test run
+* Update ci.yml
+* Update ci.yml
+* test run
+* stable init
+* init commit
+* Create triage\_existing.yml
+* init commit
+* init commit
+* Create requirements.in
+* Create requirements.txt
+* Create Makefile
+* Create conftest.py
+* Update README.md
+* Create ci.yml
+* Update tox.ini
+* Update triage\_new.yml
+* Create triage\_new.yml
+* Create common.py
+* Create \_\_init\_\_.py
+* Create requirements.txt
+* Create .coveragerc
+* Create .dockerignore
+* Create .git\_archival.txt
+* Create .gitattributes
+* Create .gitignore
+* Create .pre-commit-config.yaml
+* Create .readthedocs.yaml
+* Create .yamllint
+* Create README.md
+* Create LICENSE.md
+* Create MANIFEST.in
+* Create pyproject.toml
+* Create pytest.ini
+* Create setup.cfg
+* Create tox.ini
